@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import os
+import glob
 
 # 페이지 기본 설정
 st.set_page_config(page_title="C형 간염 데이터 분석 (1차시)", layout="wide")
@@ -7,9 +9,20 @@ st.set_page_config(page_title="C형 간염 데이터 분석 (1차시)", layout="
 st.title("🏥 C형 간염 관련 간 질환군 분류 프로젝트 (1차시)")
 st.write("데이터 구조 확인, 결측치 탐색 및 이진 분류 타깃(Target) 생성 과정입니다.")
 
+# 현재 폴더의 모든 csv 파일 자동 탐색
+csv_files = glob.glob("*.csv") + glob.glob("*/*.csv")
+
+if not csv_files:
+    st.error("🚨 깃허브 저장소에 CSV 파일이 아직 업로드되지 않았습니다!")
+    st.info("깃허브 저장소 화면에서 [Add file] -> [Upload files]를 눌러 csv 파일을 올리고 아래 초록색 [Commit changes]를 눌러주세요.")
+    st.write("현재 깃허브에 올라와 있는 파일 목록:", os.listdir("."))
+    st.stop()
+
+# 첫 번째로 발견된 csv 파일 자동 로드
+df = pd.read_csv(csv_files[0])
+
 # 1. 데이터 구조 및 기초 정보 확인
 st.header("1. 데이터 구조 및 기초 정보 확인")
-df = pd.read_csv("HepatitisCdata.csv")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -54,7 +67,7 @@ st.divider()
 
 # 4. 불필요한 컬럼 제거 및 의심군 제외
 st.header("4. 불필요한 컬럼 제거 및 의심 헌혈자 제외")
-df_clean = df.drop(columns=['Unnamed: 0'])
+df_clean = df.drop(columns=['Unnamed: 0'], errors='ignore')
 df_clean = df_clean[df_clean['Category'] != '0s=suspect Blood Donor'].copy()
 
 st.success(f"✅ 'Unnamed: 0' 컬럼 제거 및 '0s=suspect Blood Donor'(7건) 제외 완료! (남은 데이터: {len(df_clean)}개)")
