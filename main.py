@@ -1,13 +1,13 @@
 import streamlit as st
 import pandas as pd
-import os
 import glob
+import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 
 st.set_page_config(page_title="C형 간염 데이터 분석 (2차시)", layout="wide")
 
 st.title("🏥 C형 간염 관련 간 질환군 분류 프로젝트 (2차시)")
-st.write("데이터 전처리(인코딩·결측치 대치) 및 탐색적 데이터 분석(EDA) 과정입니다.")
+st.write("데이터 전처리(성별 인코딩·결측치 대치) 및 탐색적 데이터 분석(상관계수·박스플롯) 과정입니다.")
 
 csv_files = glob.glob("*.csv") + glob.glob("*/*.csv")
 if not csv_files:
@@ -25,9 +25,20 @@ with st.expander("📌 1차시 요약 보기 (데이터 정제 및 Target 생성
 
 st.divider()
 
-# 1. 성별 인코딩 및 데이터 분리 / 결측치 대치
-st.header("1. 성별 인코딩 및 결측치 대치 (데이터 누출 방지)")
+# 1. 성별 인코딩 결과 확인 및 결측치 대치
+st.header("1. 성별 인코딩(m=0, f=1) 확인 및 결측치 대치")
+
+df_clean['Sex_Before'] = df_clean['Sex']
 df_clean['Sex'] = df_clean['Sex'].map({'m': 0, 'f': 1})
+
+col_sex1, col_sex2 = st.columns(2)
+with col_sex1:
+    st.subheader("성별 인코딩 변환 전후 확인 (상위 5행)")
+    st.dataframe(df_clean[['Age', 'Sex_Before', 'Sex', 'Target']].head(), use_container_width=True)
+with col_sex2:
+    st.subheader("성별 인코딩 분포 (0: 남성, 1: 여성)")
+    sex_counts = df_clean['Sex'].value_counts().rename(index={0: '0 (m: 남성)', 1: '1 (f: 여성)'})
+    st.dataframe(sex_counts, use_container_width=True)
 
 features = ['Age', 'Sex', 'ALB', 'ALP', 'ALT', 'AST', 'BIL', 'CHE', 'CHOL', 'CREA', 'GGT', 'PROT']
 X = df_clean[features]
@@ -68,16 +79,25 @@ with col5:
 
 st.divider()
 
-# 3. 정상군 vs 질환군 주요 변수 비교
-st.header("3. 정상군(0) vs 간 질환군(1) 주요 생화학 지표 비교")
+# 3. 정상군 vs 질환군 주요 변수 비교 및 박스플롯(Boxplot)
+st.header("3. 정상군(0) vs 간 질환군(1) 주요 지표 비교 및 박스플롯(Boxplot)")
 key_vars = ['AST', 'GGT', 'BIL', 'CHE', 'ALB', 'CHOL']
 group_mean = train_df.groupby('Target')[key_vars].mean().T
 group_mean.columns = ['정상군(0) 평균', '간 질환군(1) 평균']
 
-col6, col7 = st.columns([1, 2])
-with col6:
-    st.subheader("집단별 주요 수치 평균 비교")
-    st.dataframe(group_mean.round(2), use_container_width=True)
-with col7:
-    st.subheader("집단별 수치 차이 시각화")
-    st.bar_chart(group_mean)
+st.subheader("집단별 주요 수치 평균 비교표")
+st.dataframe(group_mean.round(2), use_container_width=True)
+
+st.subheader("정상군(0) vs 질환군(1) 주요 변수 분포 박스플롯 (Boxplot)")
+fig, axes = plt.subplots(2, 3, figsize=(14, 7))
+axes = axes.flatten()
+
+for i, var in enumerate(key_vars):
+    data_0 = train_df[train_df['Target'] == 0][var]
+    data_1 = train_df[train_df['Target'] == 1][var]
+    axes[i].boxplot([data_0, data_1], tick_labels=['Normal (0)', 'Disease (1)'])
+    axes[i].set_title(f"{var} Distribution by Target")
+    axes[i].grid(axis='y', linestyle='--', alpha=0.5)
+
+plt.tight_layout()
+st.pyplot(fig)
