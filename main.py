@@ -52,7 +52,7 @@ feature_units = {
     'CHOL': 'mmol/L', 'CREA': 'µmol/L', 'GGT': 'U/L', 'PROT': 'g/L'
 }
 
-# 1~3차시 데이터 전처리 및 모델 성능 평가 요약 보기
+# 1~3차시 데이터 전처리 및 모델 성능 평가 요약 보기 (기존과 100% 동일)
 with st.expander("📌 1~3차시 데이터 전처리 및 모델 성능 평가 요약 보기"):
     st.subheader("모델 최종 성능 평가 지표 (Test 데이터 기준)")
     c1, c2, c3, c4 = st.columns(4)
@@ -244,29 +244,31 @@ with st.expander("📌 1~3차시 데이터 전처리 및 모델 성능 평가 �
 
 st.divider()
 
-# 1. 실시간 간 질환 분류 예측 시뮬레이터 (프리셋 변경 시 슬라이더 강제 동기화 적용)
+# 1. 실시간 간 질환 분류 예측 시뮬레이터 (슬라이더 + 숫자 입력창 양방향 연동)
 st.header("1. 환자 혈액 검사 수치 입력 및 실시간 질환 예측")
-st.write("아래 샘플 선택 버튼을 누르거나 슬라이더를 조절하여 혈액 검사 수치를 입력해 보세요.")
+st.write("아래 샘플 선택 버튼을 누르거나, 슬라이더 조절 또는 우측 숫자 입력창에 직접 타이핑하여 혈액 검사 수치를 입력해 보세요.")
 
 normal_means = X_train_imp[y_train == 0].mean()
 disease_means = X_train_imp[y_train == 1].mean()
 
 def apply_preset_values(target_means):
-    st.session_state["sl_age"] = int(round(target_means['Age']))
+    age_val = int(round(target_means['Age']))
+    st.session_state["sl_age"] = age_val
+    st.session_state["num_age"] = age_val
     st.session_state["sl_sex"] = "남성 (m=0)"
-    st.session_state["sl_ast"] = float(round(target_means['AST'], 1))
-    st.session_state["sl_ggt"] = float(round(target_means['GGT'], 1))
-    st.session_state["sl_bil"] = float(round(target_means['BIL'], 1))
-    st.session_state["sl_alt"] = float(round(target_means['ALT'], 1))
-    st.session_state["sl_alp"] = float(round(target_means['ALP'], 1))
-    st.session_state["sl_crea"] = float(round(target_means['CREA'], 1))
-    st.session_state["sl_alb"] = float(round(target_means['ALB'], 1))
-    st.session_state["sl_che"] = float(round(target_means['CHE'], 1))
-    st.session_state["sl_chol"] = float(round(target_means['CHOL'], 1))
-    st.session_state["sl_prot"] = float(round(target_means['PROT'], 1))
 
-# 최초 실행 시 슬라이더 세션 초기화
-if "sl_age" not in st.session_state:
+    float_keys = [
+        ('ast', 'AST'), ('ggt', 'GGT'), ('bil', 'BIL'), ('alt', 'ALT'),
+        ('alp', 'ALP'), ('crea', 'CREA'), ('alb', 'ALB'), ('che', 'CHE'),
+        ('chol', 'CHOL'), ('prot', 'PROT')
+    ]
+    for k, col in float_keys:
+        val = float(round(target_means[col], 1))
+        st.session_state[f"sl_{k}"] = val
+        st.session_state[f"num_{k}"] = val
+
+# 최초 실행 시 슬라이더 및 숫자 입력창 세션 초기화
+if "sl_age" not in st.session_state or "num_age" not in st.session_state:
     apply_preset_values(normal_means)
 
 def on_preset_change():
@@ -275,6 +277,49 @@ def on_preset_change():
         apply_preset_values(disease_means)
     else:
         apply_preset_values(normal_means)
+
+# 슬라이더 <-> 숫자 입력창 양방향 동기화 콜백 함수
+def sync_from_slider(name):
+    st.session_state[f"num_{name}"] = st.session_state[f"sl_{name}"]
+
+def sync_from_num(name):
+    st.session_state[f"sl_{name}"] = st.session_state[f"num_{name}"]
+
+def synced_input_row(label, name, min_val, max_val, step_val, is_int=False):
+    c_sl, c_num = st.columns([2.3, 1])
+    with c_sl:
+        st.slider(
+            label,
+            min_value=min_val,
+            max_value=max_val,
+            step=step_val,
+            key=f"sl_{name}",
+            on_change=sync_from_slider,
+            args=(name,)
+        )
+    with c_num:
+        if is_int:
+            st.number_input(
+                "직접 입력",
+                min_value=min_val,
+                max_value=max_val,
+                step=step_val,
+                key=f"num_{name}",
+                on_change=sync_from_num,
+                args=(name,)
+            )
+        else:
+            st.number_input(
+                "직접 입력",
+                min_value=min_val,
+                max_value=max_val,
+                step=step_val,
+                format="%.1f",
+                key=f"num_{name}",
+                on_change=sync_from_num,
+                args=(name,)
+            )
+    return st.session_state[f"sl_{name}"]
 
 preset = st.radio(
     "빠른 테스트를 위한 입력값 프리셋 선택:",
@@ -288,25 +333,25 @@ col_in1, col_in2, col_in3 = st.columns(3)
 
 with col_in1:
     st.subheader("기본 정보 및 핵심 효소")
-    age = st.slider("Age (나이)", 18, 80, key="sl_age")
+    age = synced_input_row("Age (나이)", "age", 18, 80, 1, is_int=True)
     sex_label = st.selectbox("Sex (성별)", ["남성 (m=0)", "여성 (f=1)"], key="sl_sex")
     sex = 0 if "남성" in sex_label else 1
-    ast = st.slider("AST (아스파르테이트 아미노전이효소, U/L)", 10.0, 350.0, step=0.1, key="sl_ast")
-    ggt = st.slider("GGT (감마-글루타밀전이효소, U/L)", 5.0, 650.0, step=0.1, key="sl_ggt")
+    ast = synced_input_row("AST (아스파르테이트 아미노전이효소, U/L)", "ast", 10.0, 350.0, 0.1)
+    ggt = synced_input_row("GGT (감마-글루타밀전이효소, U/L)", "ggt", 5.0, 650.0, 0.1)
 
 with col_in2:
     st.subheader("간 손상 및 대사 지표")
-    bil = st.slider("BIL (빌리루빈 농도, µmol/L)", 1.0, 260.0, step=0.1, key="sl_bil")
-    alt = st.slider("ALT (알라닌 아미노전이효소, U/L)", 1.0, 350.0, step=0.1, key="sl_alt")
-    alp = st.slider("ALP (알칼리성 인산분해효소, U/L)", 10.0, 420.0, step=0.1, key="sl_alp")
-    crea = st.slider("CREA (크레아티닌 농도, µmol/L)", 8.0, 1100.0, step=0.1, key="sl_crea")
+    bil = synced_input_row("BIL (빌리루빈 농도, µmol/L)", "bil", 1.0, 260.0, 0.1)
+    alt = synced_input_row("ALT (알라닌 아미노전이효소, U/L)", "alt", 1.0, 350.0, 0.1)
+    alp = synced_input_row("ALP (알칼리성 인산분해효소, U/L)", "alp", 10.0, 420.0, 0.1)
+    crea = synced_input_row("CREA (크레아티닌 농도, µmol/L)", "crea", 8.0, 1100.0, 0.1)
 
 with col_in3:
     st.subheader("간 합성 기능 지표")
-    alb = st.slider("ALB (알부민 농도, g/L)", 15.0, 85.0, step=0.1, key="sl_alb")
-    che = st.slider("CHE (콜린에스테라아제, kU/L)", 1.0, 17.0, step=0.1, key="sl_che")
-    chol = st.slider("CHOL (콜레스테롤, mmol/L)", 1.5, 10.0, step=0.1, key="sl_chol")
-    prot = st.slider("PROT (총 단백질 농도, g/L)", 40.0, 95.0, step=0.1, key="sl_prot")
+    alb = synced_input_row("ALB (알부민 농도, g/L)", "alb", 15.0, 85.0, 0.1)
+    che = synced_input_row("CHE (콜린에스테라아제, kU/L)", "che", 1.0, 17.0, 0.1)
+    chol = synced_input_row("CHOL (콜레스테롤, mmol/L)", "chol", 1.5, 10.0, 0.1)
+    prot = synced_input_row("PROT (총 단백질 농도, g/L)", "prot", 40.0, 95.0, 0.1)
 
 input_data = pd.DataFrame([[age, sex, alb, alp, alt, ast, bil, che, chol, crea, ggt, prot]], columns=features)
 input_scaled = scaler.transform(input_data)
@@ -316,7 +361,7 @@ pred_proba = model.predict_proba(input_scaled)[0]
 
 st.divider()
 
-# 2. 예측 결과 및 주요 수치 비교 시각화 (6개 변수 개별 그래프 및 단위 분리)
+# 2. 예측 결과 및 주요 수치 비교 시각화 (기존과 100% 동일)
 st.header("2. AI 모델 예측 결과 및 주요 지표 비교 분석")
 
 res_col1, res_col2 = st.columns([1, 1.4])
@@ -377,7 +422,7 @@ with res_col2:
 
 st.divider()
 
-# 3. 로지스틱 회귀 예측 근거 분석 (변수별 개별 기여도)
+# 3. 로지스틱 회귀 예측 근거 분석 (기존과 100% 동일)
 st.header("3. 로지스틱 회귀 모델의 예측 근거 분석 (변수별 개별 기여도)")
 st.info(
     "💡 **해석 및 주의 안내**: 아래 기여도는 예측 확률(%)의 직접적인 증감률이 아니라, **간 질환군(1)의 로그 오즈(Log-odds)에 대한 선형 기여도(표준화된 입력값 × 회귀계수)**입니다. "
