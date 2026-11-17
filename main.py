@@ -52,7 +52,7 @@ feature_units = {
     'CHOL': 'mmol/L', 'CREA': 'µmol/L', 'GGT': 'U/L', 'PROT': 'g/L'
 }
 
-# [개선 1 & 3] 1~3차시 데이터 전처리 및 모델 성능 평가 요약 보기 (실제 계산값 기반 상세화)
+# 1~3차시 데이터 전처리 및 모델 성능 평가 요약 보기
 with st.expander("📌 1~3차시 데이터 전처리 및 모델 성능 평가 요약 보기"):
     st.subheader("모델 최종 성능 평가 지표 (Test 데이터 기준)")
     c1, c2, c3, c4 = st.columns(4)
@@ -244,47 +244,69 @@ with st.expander("📌 1~3차시 데이터 전처리 및 모델 성능 평가 �
 
 st.divider()
 
-# 1. 실시간 간 질환 분류 예측 시뮬레이터 (기존과 100% 동일)
+# 1. 실시간 간 질환 분류 예측 시뮬레이터 (프리셋 변경 시 슬라이더 강제 동기화 적용)
 st.header("1. 환자 혈액 검사 수치 입력 및 실시간 질환 예측")
 st.write("아래 샘플 선택 버튼을 누르거나 슬라이더를 조절하여 혈액 검사 수치를 입력해 보세요.")
-
-preset = st.radio(
-    "빠른 테스트를 위한 입력값 프리셋 선택:",
-    ["직접 슬라이더로 조절 (기본값: 정상군 평균)", "정상 헌혈자 평균 수치 불러오기", "간 질환군(간염·섬유화·간경변) 평균 수치 불러오기"],
-    horizontal=True
-)
 
 normal_means = X_train_imp[y_train == 0].mean()
 disease_means = X_train_imp[y_train == 1].mean()
 
-if preset == "간 질환군(간염·섬유화·간경변) 평균 수치 불러오기":
-    default_vals = disease_means
-else:
-    default_vals = normal_means
+def apply_preset_values(target_means):
+    st.session_state["sl_age"] = int(round(target_means['Age']))
+    st.session_state["sl_sex"] = "남성 (m=0)"
+    st.session_state["sl_ast"] = float(round(target_means['AST'], 1))
+    st.session_state["sl_ggt"] = float(round(target_means['GGT'], 1))
+    st.session_state["sl_bil"] = float(round(target_means['BIL'], 1))
+    st.session_state["sl_alt"] = float(round(target_means['ALT'], 1))
+    st.session_state["sl_alp"] = float(round(target_means['ALP'], 1))
+    st.session_state["sl_crea"] = float(round(target_means['CREA'], 1))
+    st.session_state["sl_alb"] = float(round(target_means['ALB'], 1))
+    st.session_state["sl_che"] = float(round(target_means['CHE'], 1))
+    st.session_state["sl_chol"] = float(round(target_means['CHOL'], 1))
+    st.session_state["sl_prot"] = float(round(target_means['PROT'], 1))
+
+# 최초 실행 시 슬라이더 세션 초기화
+if "sl_age" not in st.session_state:
+    apply_preset_values(normal_means)
+
+def on_preset_change():
+    selected = st.session_state["preset_radio"]
+    if selected == "간 질환군(간염·섬유화·간경변) 평균 수치 불러오기":
+        apply_preset_values(disease_means)
+    else:
+        apply_preset_values(normal_means)
+
+preset = st.radio(
+    "빠른 테스트를 위한 입력값 프리셋 선택:",
+    ["직접 슬라이더로 조절 (기본값: 정상군 평균)", "정상 헌혈자 평균 수치 불러오기", "간 질환군(간염·섬유화·간경변) 평균 수치 불러오기"],
+    horizontal=True,
+    key="preset_radio",
+    on_change=on_preset_change
+)
 
 col_in1, col_in2, col_in3 = st.columns(3)
 
 with col_in1:
     st.subheader("기본 정보 및 핵심 효소")
-    age = st.slider("Age (나이)", 18, 80, int(default_vals['Age']))
-    sex_label = st.selectbox("Sex (성별)", ["남성 (m=0)", "여성 (f=1)"])
+    age = st.slider("Age (나이)", 18, 80, key="sl_age")
+    sex_label = st.selectbox("Sex (성별)", ["남성 (m=0)", "여성 (f=1)"], key="sl_sex")
     sex = 0 if "남성" in sex_label else 1
-    ast = st.slider("AST (아스파르테이트 아미노전이효소, U/L)", 10.0, 350.0, float(round(default_vals['AST'], 1)))
-    ggt = st.slider("GGT (감마-글루타밀전이효소, U/L)", 5.0, 650.0, float(round(default_vals['GGT'], 1)))
+    ast = st.slider("AST (아스파르테이트 아미노전이효소, U/L)", 10.0, 350.0, step=0.1, key="sl_ast")
+    ggt = st.slider("GGT (감마-글루타밀전이효소, U/L)", 5.0, 650.0, step=0.1, key="sl_ggt")
 
 with col_in2:
     st.subheader("간 손상 및 대사 지표")
-    bil = st.slider("BIL (빌리루빈 농도, µmol/L)", 1.0, 260.0, float(round(default_vals['BIL'], 1)))
-    alt = st.slider("ALT (알라닌 아미노전이효소, U/L)", 1.0, 350.0, float(round(default_vals['ALT'], 1)))
-    alp = st.slider("ALP (알칼리성 인산분해효소, U/L)", 10.0, 420.0, float(round(default_vals['ALP'], 1)))
-    crea = st.slider("CREA (크레아티닌 농도, µmol/L)", 8.0, 1100.0, float(round(default_vals['CREA'], 1)))
+    bil = st.slider("BIL (빌리루빈 농도, µmol/L)", 1.0, 260.0, step=0.1, key="sl_bil")
+    alt = st.slider("ALT (알라닌 아미노전이효소, U/L)", 1.0, 350.0, step=0.1, key="sl_alt")
+    alp = st.slider("ALP (알칼리성 인산분해효소, U/L)", 10.0, 420.0, step=0.1, key="sl_alp")
+    crea = st.slider("CREA (크레아티닌 농도, µmol/L)", 8.0, 1100.0, step=0.1, key="sl_crea")
 
 with col_in3:
     st.subheader("간 합성 기능 지표")
-    alb = st.slider("ALB (알부민 농도, g/L)", 15.0, 85.0, float(round(default_vals['ALB'], 1)))
-    che = st.slider("CHE (콜린에스테라아제, kU/L)", 1.0, 17.0, float(round(default_vals['CHE'], 1)))
-    chol = st.slider("CHOL (콜레스테롤, mmol/L)", 1.5, 10.0, float(round(default_vals['CHOL'], 1)))
-    prot = st.slider("PROT (총 단백질 농도, g/L)", 40.0, 95.0, float(round(default_vals['PROT'], 1)))
+    alb = st.slider("ALB (알부민 농도, g/L)", 15.0, 85.0, step=0.1, key="sl_alb")
+    che = st.slider("CHE (콜린에스테라아제, kU/L)", 1.0, 17.0, step=0.1, key="sl_che")
+    chol = st.slider("CHOL (콜레스테롤, mmol/L)", 1.5, 10.0, step=0.1, key="sl_chol")
+    prot = st.slider("PROT (총 단백질 농도, g/L)", 40.0, 95.0, step=0.1, key="sl_prot")
 
 input_data = pd.DataFrame([[age, sex, alb, alp, alt, ast, bil, che, chol, crea, ggt, prot]], columns=features)
 input_scaled = scaler.transform(input_data)
@@ -294,7 +316,7 @@ pred_proba = model.predict_proba(input_scaled)[0]
 
 st.divider()
 
-# 2. 예측 결과 및 주요 수치 비교 시각화 ([개선 2] 6개 변수 개별 그래프 및 단위 분리)
+# 2. 예측 결과 및 주요 수치 비교 시각화 (6개 변수 개별 그래프 및 단위 분리)
 st.header("2. AI 모델 예측 결과 및 주요 지표 비교 분석")
 
 res_col1, res_col2 = st.columns([1, 1.4])
@@ -355,7 +377,7 @@ with res_col2:
 
 st.divider()
 
-# 3. 로지스틱 회귀 예측 근거 분석 (변수별 개별 기여도 - 기존과 100% 동일 유지)
+# 3. 로지스틱 회귀 예측 근거 분석 (변수별 개별 기여도)
 st.header("3. 로지스틱 회귀 모델의 예측 근거 분석 (변수별 개별 기여도)")
 st.info(
     "💡 **해석 및 주의 안내**: 아래 기여도는 예측 확률(%)의 직접적인 증감률이 아니라, **간 질환군(1)의 로그 오즈(Log-odds)에 대한 선형 기여도(표준화된 입력값 × 회귀계수)**입니다. "
