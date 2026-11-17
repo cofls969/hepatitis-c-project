@@ -195,14 +195,15 @@ with st.expander("📌 1~3차시 데이터 전처리 및 모델 성능 평가 �
         axes_box = axes_box.flatten()
 
         for idx, var in enumerate(box_vars):
-            data_0 = X_train_imp[y_train == 0][var]
-            data_1 = X_train_imp[y_train == 1][var]
+            data_0 = X_train_imp[y_train == 0][var].dropna().values
+            data_1 = X_train_imp[y_train == 1][var].dropna().values
             bp = axes_box[idx].boxplot(
                 [data_0, data_1],
-                labels=['Normal (0)', 'Disease (1)'],
                 patch_artist=True,
                 widths=0.45
             )
+            axes_box[idx].set_xticks([1, 2])
+            axes_box[idx].set_xticklabels(['Normal (0)', 'Disease (1)'])
             bp['boxes'][0].set_facecolor('#a6cee3')
             bp['boxes'][1].set_facecolor('#fb9a99')
             axes_box[idx].set_title(f"{var} ({feature_units[var]}) Distribution")
